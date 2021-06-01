@@ -1,32 +1,93 @@
 version: "3.8"
 services:
   mysql:
-    image: bitnami/mysql:5.7
-    tmpfs:
-      - /var/lib/mysql
+    image: mysql:5.7
+    volumes:
+      - mysql-data:/var/lib/mysql
     environment:
-      ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: shopware
       MYSQL_USER: shopware
       MYSQL_PASSWORD: shopware
-      MYSQL_DATABASE: shopware
+  maintenance:
+    image: shyim/shopware:latest
+    depends_on:
+      - mysql
+    env_file:
+      - .env
+    command: ['maintenance']
+    volumes:
+      - state:/state
+      - plugins:/var/www/html/custom/plugins
+      - files:/var/www/html/files
+      - jwt:/var/www/html/config/jwt
+      - theme:/var/www/html/public/theme
+      - media:/var/www/html/public/media
+      - thumbnail:/var/www/html/public/thumbnail
+      - bundles:/var/www/html/public/bundles
+      - sitemap:/var/www/html/public/sitemap
   shopware:
     image: shyim/shopware:latest
-    build:
-      context: .
+    command: ['web']
+    depends_on:
+      - maintenance
+    env_file:
+      - .env
     environment:
-      APP_SECRET: 440dec3766de53010c5ccf6231c182acfc90bd25cff82e771245f736fd276518
-      INSTANCE_ID: 10612e3916e153dd3447850e944a03fabe89440970295447a30a75b151bd844e
-      APP_URL: http://localhost
-      MAILER_URL: null://localhost
-      DATABASE_HOST: mysql
-      DATABASE_URL: mysql://shopware:shopware@mysql:3306/shopware
-      SHOPWARE_ES_HOSTS: 
-      SHOPWARE_ES_ENABLED: 0
-      SHOPWARE_ES_INDEXING_ENABLED: 0
-      SHOPWARE_ES_INDEX_PREFIX: 
-      COMPOSER_HOME: /tmp/composer
-      SHOPWARE_HTTP_CACHE_ENABLED: 1
-      SHOPWARE_HTTP_DEFAULT_TTL: 7200
-      INSTALL_LOCALE: de-DE
+      DISABLE_ADMIN_WORKER: 'true'
     ports:
       - 80:80
+    volumes:
+      - plugins:/var/www/html/custom/plugins
+      - files:/var/www/html/files
+      - jwt:/var/www/html/config/jwt
+      - theme:/var/www/html/public/theme
+      - media:/var/www/html/public/media
+      - thumbnail:/var/www/html/public/thumbnail
+      - bundles:/var/www/html/public/bundles
+      - sitemap:/var/www/html/public/sitemap
+  worker:
+    image: shyim/shopware:latest
+    restart: always
+    depends_on:
+      - shopware
+    env_file:
+      - .env
+    command: ['cli', 'messenger:consume', '--memory-limit=1G', '--time-limit=60']
+    volumes:
+      - plugins:/var/www/html/custom/plugins
+      - files:/var/www/html/files
+      - jwt:/var/www/html/config/jwt
+      - theme:/var/www/html/public/theme
+      - media:/var/www/html/public/media
+      - thumbnail:/var/www/html/public/thumbnail
+      - bundles:/var/www/html/public/bundles
+      - sitemap:/var/www/html/public/sitemap
+  task:
+    image: shyim/shopware:latest
+    restart: always
+    depends_on:
+      - shopware
+    env_file:
+      - .env
+    command: ['cli', 'scheduled-task:run', '--memory-limit=1G', '--time-limit=60']
+    volumes:
+      - plugins:/var/www/html/custom/plugins
+      - files:/var/www/html/files
+      - jwt:/var/www/html/config/jwt
+      - theme:/var/www/html/public/theme
+      - media:/var/www/html/public/media
+      - thumbnail:/var/www/html/public/thumbnail
+      - bundles:/var/www/html/public/bundles
+      - sitemap:/var/www/html/public/sitemap
+volumes:
+  state:
+  mysql-data:
+  plugins:
+  files:
+  jwt:
+  theme:
+  media:
+  thumbnail:
+  bundles:
+  sitemap:
